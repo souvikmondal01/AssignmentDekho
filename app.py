@@ -1,5 +1,4 @@
-from flask import Flask, jsonify, request, send_file
-from flask_cors import CORS
+from flask import Flask, jsonify, request
 from os import environ
 from config import db, SECRET_KEY, AWS_ACCESS_KEY_ID, SECRET_ACCESS_KEY
 from dotenv import load_dotenv
@@ -105,7 +104,8 @@ def create_app():
 
         @app.route("/upload_assignment", methods=["POST", "GET"])
         def upload_assignment():
-            doc_filename = "3rd_SEM_fees.pdf"
+            file = request.files["file"]
+            doc_filename = file.filename
             s3_client.upload_file(
                 Filename=doc_filename,
                 Bucket="assignment-dekho-bucket",
@@ -201,6 +201,7 @@ def create_app():
                             "index": index,
                             "title": assignment.title,
                             "filename": assignment.filename,
+                            "filelink": assignment.filelink,
                             "semester": assignment.semester,
                             "upload_date": assignment.upload_date,
                             "upload_time": assignment.upload_time
@@ -255,6 +256,7 @@ def create_app():
                             "index": index,
                             "title": assignment.title,
                             "filename": assignment.filename,
+                            "filelink": assignment.filelink,
                             "semester": assignment.semester,
                             "upload_date": assignment.upload_date,
                             "upload_time": assignment.upload_time
@@ -279,6 +281,7 @@ def create_app():
                             "index": index,
                             "title": assignment.title,
                             "filename": assignment.filename,
+                            "filelink": assignment.filelink,
                             "semester": assignment.semester,
                             "upload_date": assignment.upload_date,
                             "upload_time": assignment.upload_time
@@ -306,6 +309,7 @@ def create_app():
                             "index": index,
                             "title": assignment.title,
                             "filename": assignment.filename,
+                            "filelink": assignment.filelink,
                             "semester": assignment.semester,
                             "upload_date": assignment.upload_date,
                             "upload_time": assignment.upload_time
@@ -314,6 +318,7 @@ def create_app():
 
             else:
                 return "user does not exist"
+
         # db.drop_all()
         db.create_all()
         db.session.commit()
