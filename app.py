@@ -5,7 +5,6 @@ from config import db, SECRET_KEY, AWS_ACCESS_KEY_ID, SECRET_ACCESS_KEY
 from dotenv import load_dotenv
 from datetime import datetime, date
 import pytz
-from io import BytesIO
 import boto3
 import pandas as pd
 from models.user import User
@@ -104,6 +103,111 @@ def create_app():
             else:
                 return "user does not exist"
 
+        @app.route("/upload_assignment", methods=["POST", "GET"])
+        def upload_assignment():
+            doc_filename = "3rd_SEM_fees.pdf"
+            s3_client.upload_file(
+                Filename=doc_filename,
+                Bucket="assignment-dekho-bucket",
+                Key=doc_filename,)
+
+            curr_date = str(date.today())
+            curr_time = str(datetime.now(pytz.timezone("Asia/Kolkata")))
+
+            email = request.form["email"]
+            user = User.query.filter_by(email=email).first()
+            if user:
+                new_assignment = Assignment(
+                    title=request.form["title"],
+                    filename=doc_filename,
+                    filelink=f"https://assignment-dekho-bucket.s3.us-west-2.amazonaws.com/{doc_filename}",
+                    semester=request.form["semester"],
+                    upload_date=curr_date,
+                    upload_time=curr_time,
+                    user_id=user.id
+                )
+                db.session.add(new_assignment)
+                db.session.commit()
+
+                return jsonify(msg="Assignment uploaded successfully")
+            else:
+                return "user does not exist"
+
+        @app.route("/show_assignment", methods=["POST", "GET"])
+        def show_assignment():
+            email = request.form["email"]
+            user = User.query.filter_by(email=email).first()
+            if user:
+                assignments = Assignment.query.filter_by(user_id=user.id).all()
+
+                assignment_dict = {
+                    "user_id": user.id,
+                    "name": user.name,
+                    "username": user.username,
+                    "email": user.email,
+                    "assignments": []
+                }
+                assignment_data = []
+
+                for assignment in assignments:
+                    index = assignments.index(assignment)
+
+                    assignment_data.append({
+                        "index": index,
+                        "title": assignment.title,
+                        "filename": assignment.filename,
+                        "filelink": assignment.filelink,
+                        "semester": assignment.semester,
+                        "upload_date": assignment.upload_date,
+                        "upload_time": assignment.upload_time
+                    })
+                assignment_dict["assignments"] = assignment_data
+
+                return jsonify(assignment_dict)
+            else:
+                return "user does not exist"
+
+        @app.route("/share_assignment", methods=["POST", "GET"])
+        def share_assignment():
+            email = request.form["email"]
+            assignment_index = int(request.form["assignment_index"])
+            friend_email = request.form["friend_email"]
+            user = User.query.filter_by(email=email).first()
+            if user:
+                assignments = Assignment.query.filter_by(user_id=user.id).all()
+                assignment = assignments[assignment_index]
+                shared_user = ShareUser(
+                    email=friend_email,
+                    assignment_id=assignment.id,
+                )
+                db.session.add(shared_user)
+                db.session.commit()
+                return "Assignment shared successfully to "+friend_email
+
+        @app.route("/show_shared_assignment", methods=["POST", "GET"])
+        def show_shared_assignment():
+            email = request.form["email"]
+            shareUsers = ShareUser.query.filter_by(email=email).all()
+
+            assignment_list = []
+            for shareUser in shareUsers:
+                sharedAssignmentId = shareUser.assignment_id
+                assignments = Assignment.query.all()
+                for assignment in assignments:
+                    if assignment.id == sharedAssignmentId:
+                        index = assignments.index(assignment)
+
+                        assignment_list.append({
+                            "index": index,
+                            "title": assignment.title,
+                            "filename": assignment.filename,
+                            "semester": assignment.semester,
+                            "upload_date": assignment.upload_date,
+                            "upload_time": assignment.upload_time
+                        })
+
+            return assignment_list
+
         @app.route("/edit_assignments_details", methods=["POST", "GET"])
         def edit_assignments_details():
             email = request.form["email"]
@@ -121,6 +225,95 @@ def create_app():
             else:
                 return "user does not exist"
 
+        @app.route("/delete_assignment", methods=["POST", "GET"])
+        def delete_assignment():
+            email = request.form["email"]
+            assignment_index = int(request.form["assignment_index"])
+            user = User.query.filter_by(email=email).first()
+            if user:
+                assignments = Assignment.query.filter_by(user_id=user.id).all()
+                assignment = assignments[assignment_index]
+                db.session.delete(assignment)
+                db.session.commit()
+            else:
+                return "user does not exist"
+
+            return "Assignment deleted successfully"
+
+        @app.route("/show_semester_assignment", methods=["POST", "GET"])
+        def show_semester_assignment():
+            email = request.form["email"]
+            semester = request.form["semester"]
+            user = User.query.filter_by(email=email).first()
+            if user:
+                assignments = Assignment.query.filter_by(user_id=user.id).all()
+                assignment_list = []
+                for assignment in assignments:
+                    if assignment.semester == semester:
+                        index = assignments.index(assignment)
+                        assignment_list.append({
+                            "index": index,
+                            "title": assignment.title,
+                            "filename": assignment.filename,
+                            "semester": assignment.semester,
+                            "upload_date": assignment.upload_date,
+                            "upload_time": assignment.upload_time
+                        })
+                return assignment_list
+
+            else:
+                return "user does not exist"
+
+        @app.route("/show_assignment_of_date", methods=["POST", "GET"])
+        def show_assignment_of_date():
+            email = request.form["email"]
+            date = request.form["date"]
+            user = User.query.filter_by(email=email).first()
+            if user:
+                assignments = Assignment.query.filter_by(user_id=user.id).all()
+                assignment_list = []
+                for assignment in assignments:
+                    if assignment.upload_date == date:
+                        index = assignments.index(assignment)
+                        assignment_list.append({
+                            "index": index,
+                            "title": assignment.title,
+                            "filename": assignment.filename,
+                            "semester": assignment.semester,
+                            "upload_date": assignment.upload_date,
+                            "upload_time": assignment.upload_time
+                        })
+                return assignment_list
+
+            else:
+                return "user does not exist"
+
+        @app.route("/show_assignment_of_daterange", methods=["POST", "GET"])
+        def show_assignment_of_daterange():
+            email = request.form["email"]
+            start_date = request.form["start_date"]
+            end_date = request.form["end_date"]
+            dates = pd.date_range(start_date, end_date)
+
+            user = User.query.filter_by(email=email).first()
+            if user:
+                assignments = Assignment.query.filter_by(user_id=user.id).all()
+                assignment_list = []
+                for assignment in assignments:
+                    if assignment.upload_date in dates:
+                        index = assignments.index(assignment)
+                        assignment_list.append({
+                            "index": index,
+                            "title": assignment.title,
+                            "filename": assignment.filename,
+                            "semester": assignment.semester,
+                            "upload_date": assignment.upload_date,
+                            "upload_time": assignment.upload_time
+                        })
+                return assignment_list
+
+            else:
+                return "user does not exist"
         # db.drop_all()
         db.create_all()
         db.session.commit()
