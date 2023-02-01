@@ -1,15 +1,18 @@
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from os import environ
-from config import db, SECRET_KEY
+from config import db, SECRET_KEY, AWS_ACCESS_KEY_ID, SECRET_ACCESS_KEY
 from dotenv import load_dotenv
 from datetime import datetime, date
 import pytz
-from io import BytesIO
+import boto3
 import pandas as pd
 from models.user import User
 from models.assignment import Assignment
 from models.shareUser import ShareUser
+
+s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID,
+                         aws_secret_access_key=SECRET_ACCESS_KEY, region_name='us-west-2')
 
 
 def create_app():
@@ -102,16 +105,22 @@ def create_app():
 
         @app.route("/upload_assignment", methods=["POST", "GET"])
         def upload_assignment():
+            doc_filename = "3rd_SEM_fees.pdf"
+            s3_client.upload_file(
+                Filename=doc_filename,
+                Bucket="assignment-dekho-bucket",
+                Key=doc_filename,)
+
             curr_date = str(date.today())
             curr_time = str(datetime.now(pytz.timezone("Asia/Kolkata")))
+
             email = request.form["email"]
             user = User.query.filter_by(email=email).first()
             if user:
-                doc = request.files["document"]
                 new_assignment = Assignment(
-                    document=doc.read(),
                     title=request.form["title"],
-                    filename=doc.filename,
+                    filename=doc_filename,
+                    filelink=f"https://assignment-dekho-bucket.s3.us-west-2.amazonaws.com/{doc_filename}",
                     semester=request.form["semester"],
                     upload_date=curr_date,
                     upload_time=curr_time,
@@ -147,6 +156,7 @@ def create_app():
                         "index": index,
                         "title": assignment.title,
                         "filename": assignment.filename,
+                        "filelink": assignment.filelink,
                         "semester": assignment.semester,
                         "upload_date": assignment.upload_date,
                         "upload_time": assignment.upload_time
