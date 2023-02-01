@@ -1,0 +1,4 @@
+DB_URI = postgresql+psycopg2://postgres:12345@localhost:5432/assignmentDekho
+SECRET_KRY = yoursecretkey
+AWS_ACCESS_KEY_ID = AKIAU45R44ASKQGNL563
+SECRET_ACCESS_KEY = +bJ1ElVVhKeIS2rWDvguL6ftb6xqsiu6UjcAuwJA
